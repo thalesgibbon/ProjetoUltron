@@ -1,0 +1,249 @@
+
+SET ThousandSep='.';
+SET DecimalSep=',';
+SET MoneyThousandSep=',';
+SET MoneyDecimalSep='.';
+SET MoneyFormat='$#,##0.00;($#,##0.00)';
+SET TimeFormat='h:mmTT';
+SET DateFormat='DD/MM/YYYY';
+SET TimestampFormat='DD/MM/YYYY h:mm:ss[.fff] TT';
+SET MonthNames='Jan;Fev;Mar;Abr;Mai;Jun;Jul;Ago;Set;Out;Nov;Dez';
+SET DayNames='Seg;Ter;Qua;Qui;Sex;Sab;Dom';
+SET vDiretorio='C:\Users\XXX\Desktop\Projeto Ultron.v1\DIRETORIO\';
+
+
+////////////////////////////////////////////////////////////////////
+TAB_UNDD_MESTRE:
+MAPPING LOAD 
+	  upper(trim(DEPARA_DEP_ALA)) 	 	as ID_UNDD
+     ,upper(trim(DEPARA_DEP_ALA)) 	 	as ID_UNDD_MESTRE
+FROM
+[$(vDiretorio)depara.xlsx]
+(ooxml, embedded labels, table is TAB_DEPARTAMENTO);
+////////////////////////////////////////////////////////////////////
+TAB_ALA_MESTRE:
+MAPPING LOAD  
+	  upper(trim(LOCAL_SAIDA)) 		as LOCAL_SAIDA
+     ,upper(trim(DEPARA_ALA_ALA))   as ID_UNDD
+FROM
+[$(vDiretorio)depara.xlsx]
+(ooxml, embedded labels, table is TAB_ALA);
+////////////////////////////////////////////////////////////////////
+TAB_ESCRITORIO:
+MAPPING LOAD
+      upper(trim(DEPARA_ESCRITORIO)) 	 as FONTE_PAGADORA
+     ,upper(trim(DEPARA_FONTE_PAGADORA)) as NOSO_FONTE_PAGADORA
+FROM
+[$(vDiretorio)depara.xlsx]
+(ooxml, embedded labels, table is TAB_PAGADORA);
+////////////////////////////////////////////////////////////////////
+TAB_TEMP_SUS:
+mapping LOAD
+	 upper(trim(ID_SUS)) 	as COD_SUS_QUARTENARIO
+	,upper(trim(DESC_SUS)) 	as DESC_SUS_QUARTENARIO
+FROM
+[$(vDiretorio)depara.xlsx]
+(ooxml, embedded labels, table is TAB_SUS);
+////////////////////////////////////////////////////////////////////
+TAB_ROBOTICA:
+MAPPING LOAD
+	 Passagem  	as PASSAGEM
+	,'ROBÓTICA' as ID_ROBOTICA 
+FROM
+[$(vDiretorio)Mapa_Cirúrgico_Robotica.xlsx]
+(ooxml, embedded labels, table is Plan1);
+////////////////////////////////////////////////////////////////////
+TAB_HOSP:
+MAPPING LOAD
+	 upper(trim(DEPARA_HOSP_DEP)) 	as ID_DEPT, 
+     upper(trim(DEPARA_HOSP_HOSP)) 	as ID_HOSP 
+FROM
+[$(vDiretorio)depara.xlsx]
+(ooxml, embedded labels, table is TAB_HOSPITAL);
+////////////////////////////////////////////////////////////////////
+TAB_DEP_MESTRE:
+MAPPING LOAD 
+	  upper(trim(DEPARA_DEP_ALA)) 	 	as ID_UNDD
+     ,upper(trim(DEPARA_DEP_DEP)) 		as ID_DEPT
+FROM
+[$(vDiretorio)depara.xlsx]
+(ooxml, embedded labels, table is TAB_DEPARTAMENTO);
+
+
+////////////////////////////////////////////////////////////////////
+NOSO:
+LOAD
+	 upper(trim([Fonte Pagadora])) 					as FONTE_PAGADORA
+	,upper(trim([Codigo Sus Primário])) 			as COD_SUS_PRIMARIO
+    ,upper(trim([Codigo Sus Secundário])) 			as COD_SUS_SECUNDARIO    
+    ,upper(trim([Codigo Sus Terciário])) 			as COD_SUS_TERCIARIO
+    ,upper(trim([Codigo Sus Quartenário])) 			as COD_SUS_QUARTENARIO
+    ,upper(trim([Local Saida])) 					as LOCAL_SAIDA
+    ,upper(trim([Tipo Alta]))						as TIPO_ALTA
+	,date(Data_Saida)								as DATA_SAIDA
+	,upper(trim(Grupo_Diagnostico))					as GRUPA_DIAGNOSTICO
+	,Passagem										as PASSAGEM
+	,upper(trim([Tipo_Procedimento_Primário]))		as CLINIC_CIRURG
+	,upper(trim([Especialidade Principal]))			as ESPECIALIDADE
+	,num(Valor_Faturado)							as VALOR_FATURADO
+	,date(Data_Saida)-date(Data_Abertura_Passagem)	as TEMPO_PERMANENCIA
+FROM [$(vDiretorio)Nosologico\*.csv]
+(txt, codepage is 1252, embedded labels, delimiter is ';', msq);
+////////////////////////////////////////////////////////////////////
+NINF_NOSO:
+LOAD distinct Erro_NOSO where ID_UNDD='NÃO ENCONTRADO';
+LOAD LOCAL_SAIDA as Erro_NOSO, applymap('TAB_ALA_MESTRE',LOCAL_SAIDA,'NÃO ENCONTRADO') as ID_UNDD Resident NOSO;
+////////////////////////////////////////////////////////////////////
+NINF_FONTE_PAGADORA:
+LOAD distinct Erro_FONTE_PAG where ID_ERRO_FONTE_PAGADORA='NÃO ENCONTRADO';
+LOAD FONTE_PAGADORA as Erro_FONTE_PAG, applymap('TAB_ESCRITORIO',FONTE_PAGADORA,'NÃO ENCONTRADO') as ID_ERRO_FONTE_PAGADORA Resident NOSO;	
+////////////////////////////////////////////////////////////////////
+NINF_AUX_SUS:
+LOAD
+	 COD_SUS_PRIMARIO													as ERRO_DESC_SUS
+	,applymap('TAB_TEMP_SUS',COD_SUS_PRIMARIO,   'NÃO ENCONTRADO')		as ERRO_DESC_SUS_APPLY
+Resident NOSO;	
+LOAD
+	 COD_SUS_SECUNDARIO													as ERRO_DESC_SUS    
+    ,applymap('TAB_TEMP_SUS',COD_SUS_SECUNDARIO, 'NÃO ENCONTRADO')		as ERRO_DESC_SUS_APPLY  
+Resident NOSO;	
+LOAD
+	 COD_SUS_TERCIARIO													as ERRO_DESC_SUS
+    ,applymap('TAB_TEMP_SUS',COD_SUS_TERCIARIO,  'NÃO ENCONTRADO')		as ERRO_DESC_SUS_APPLY
+Resident NOSO;	
+LOAD
+	 COD_SUS_QUARTENARIO												as ERRO_DESC_SUS
+    ,applymap('TAB_TEMP_SUS',COD_SUS_QUARTENARIO,'NÃO ENCONTRADO')		as ERRO_DESC_SUS_APPLY
+Resident NOSO;
+NINF_SUS:
+LOAD distinct ERRO_DESC_SUS Resident NINF_AUX_SUS where ERRO_DESC_SUS_APPLY='NÃO ENCONTRADO' ;
+drop table NINF_AUX_SUS;
+////////////////////////////////////////////////////////////////////
+NOSO_CALCULO:
+ LOAD
+ 	 ESPECIALIDADE
+ 	,CLINIC_CIRURG
+	,num(month(DATA_SAIDA))													as MES_REF
+	,year(DATA_SAIDA) 														as ANO_REF
+	,'1'																	as COUNT_SAIDA_PAG
+	,VALOR_FATURADO															as VALOR_FATURADO_PAG
+	,TEMPO_PERMANENCIA														as TEMPO_PERMANENCIA_PAG
+	,if(match(NOSO_COMPLEXIDADE,'ROBÓTICA','ALTA COMPLEXIDADE','ESTRATÉGICO')
+	 	,'1','0')															as COUNT_SAIDA_PAG_ALTA_COMP
+	,if(match(NOSO_COMPLEXIDADE,'ROBÓTICA','ALTA COMPLEXIDADE','ESTRATÉGICO')
+	 	,VALOR_FATURADO,'0')												as VALOR_FATURADO_ALTA_COMP
+	,if(match(NOSO_COMPLEXIDADE,'ROBÓTICA','ALTA COMPLEXIDADE','ESTRATÉGICO')
+	 	,TEMPO_PERMANENCIA,'0')												as TEMPO_PERMANENCIA_PAG_COMP
+	,if(FONTE_PAGADORA='PARTICULAR','PARTICULAR',
+	 	if(FONTE_PAGADORA='NÃO PAGANTES','NÃO PAGANTES',
+	 	'PAGANTE'))															as ID_FONTE_PAGADORA
+where
+		ID_HOSP = 'UNIDADE MORUMBI'
+//	and FONTE_PAGADORA<>'NÃO PAGANTES' 
+;
+LOAD *, applymap('TAB_HOSP',ID_DEPT,'NÃO ENCONTRADO') as ID_HOSP;
+LOAD
+	 NOSO_LOCAL_SAIDA														as ID_UNDD
+	,DATA_SAIDA																as DATA_SAIDA
+	,VALOR_FATURADO 														as VALOR_FATURADO
+	,TEMPO_PERMANENCIA 														as TEMPO_PERMANENCIA
+	,applymap('TAB_ESCRITORIO',FONTE_PAGADORA,'NÃO ENCONTRADO')				as FONTE_PAGADORA
+	,if(ID_ROBOTICA	='ROBÓTICA',
+	 				 'ROBÓTICA',
+		if(	DESC_SUS_PRIMARIO	='ALTA COMPLEXIDADE' or
+	 		DESC_SUS_SECUNDARIO	='ALTA COMPLEXIDADE' or
+	 		DESC_SUS_TERCIARIO	='ALTA COMPLEXIDADE' or
+	 		DESC_SUS_QUARTENARIO='ALTA COMPLEXIDADE',
+	 							 'ALTA COMPLEXIDADE',
+		  	if( DESC_SUS_PRIMARIO	='ESTRATÉGICO' or
+		 		DESC_SUS_SECUNDARIO	='ESTRATÉGICO' or
+		 		DESC_SUS_TERCIARIO	='ESTRATÉGICO' or
+		 		DESC_SUS_QUARTENARIO='ESTRATÉGICO',
+		 							 'ESTRATÉGICO',
+			  	if( DESC_SUS_PRIMARIO	='OUTROS' or
+			 		DESC_SUS_SECUNDARIO	='OUTROS' or
+			 		DESC_SUS_TERCIARIO	='OUTROS' or
+			 		DESC_SUS_QUARTENARIO='OUTROS',
+			 							 'OUTROS',
+										 'NÃO INFORMADO'))))				as NOSO_COMPLEXIDADE
+	,applymap('TAB_DEP_MESTRE',ID_UNDD,'NÃO ENCONTRADO')  					as ID_DEPT 
+	,if(Match(CLINIC_CIRURG,'PROCEDIMENTOS CIRÚRGICOS','TRANSPLANTES DE ORGÃOS, TECIDOS E CÉLULAS')
+		,'CIRÚRGICO'
+		,'CLÍNICO')															as CLINIC_CIRURG
+	,if(ESPECIALIDADE=null(),'VAZIO',ESPECIALIDADE)							as ESPECIALIDADE
+;
+LOAD
+	*
+	,applymap('TAB_TEMP_SUS',COD_SUS_PRIMARIO,   'NÃO ENCONTRADO')		as DESC_SUS_PRIMARIO
+    ,applymap('TAB_TEMP_SUS',COD_SUS_SECUNDARIO, 'NÃO ENCONTRADO')		as DESC_SUS_SECUNDARIO    
+    ,applymap('TAB_TEMP_SUS',COD_SUS_TERCIARIO,  'NÃO ENCONTRADO')		as DESC_SUS_TERCIARIO
+    ,applymap('TAB_TEMP_SUS',COD_SUS_QUARTENARIO,'NÃO ENCONTRADO')		as DESC_SUS_QUARTENARIO
+    ,applymap('TAB_ALA_MESTRE',LOCAL_SAIDA,'NÃO ENCONTRADO')			as NOSO_LOCAL_SAIDA
+    ,applymap('TAB_ROBOTICA',PASSAGEM,null())							as ID_ROBOTICA 
+    ,applymap('TAB_ALA_MESTRE',LOCAL_SAIDA,'NÃO ENCONTRADO')			as ID_UNDD
+Resident NOSO
+WHERE
+		not match(LOCAL_SAIDA,'DCI4','NINF','TIAT')
+	and TIPO_ALTA  <>'ALTA TÉCNICA';
+////////////////////////////////////////////////////////////////////
+drop table NOSO;
+////////////////////////////////////////////////////////////////////
+TAB_NOSO:
+LOAD *, '01/'&DATA_MES&'/'&DATA_ANO as DATA;
+LOAD
+ 	 ESPECIALIDADE
+ 	,CLINIC_CIRURG
+	,ID_FONTE_PAGADORA
+	,ANO_REF								as DATA_ANO
+	,MES_REF 								as DATA_MES
+	,sum(COUNT_SAIDA_PAG)					as COUNT_SAIDA_PAG
+	,sum(TEMPO_PERMANENCIA_PAG)				as TEMPO_PERMANENCIA_PAG
+	,sum(VALOR_FATURADO_PAG)				as VALOR_FATURADO_PAG
+	,sum(COUNT_SAIDA_PAG_ALTA_COMP)			as COUNT_SAIDA_PAG_ALTA_COMP
+	,sum(TEMPO_PERMANENCIA_PAG_COMP)		as TEMPO_PERMANENCIA_PAG_COMP
+	,sum(VALOR_FATURADO_ALTA_COMP)			as VALOR_FATURADO_ALTA_COMP
+Resident
+	NOSO_CALCULO
+group by
+ 	 ESPECIALIDADE
+ 	,CLINIC_CIRURG
+	,ID_FONTE_PAGADORA
+	,MES_REF
+	,ANO_REF;
+////////////////////////////////////////////////////////////////////
+Store TAB_NOSO into $(vDiretorio)Nosologico\Nosologico.qvd (qvd);
+Drop Tables NOSO_CALCULO;
+////////////////////////////////////////////////////////////////////
+
+
+TAB_AUX_LEIT_DIA:
+LOAD *FROM
+[$(vDiretorio)Assist_Leitos_Dia.xls]
+(biff, embedded labels, table is Assist_Leitos_Dia$);
+//////////////////////////////////////////////////////////////////
+FOR fieldNo = 3 to NoOfFields('TAB_AUX_LEIT_DIA')
+           let _fieldName = fieldName($(fieldNo), 'TAB_AUX_LEIT_DIA');
+//////////////////////////////////////////////////////////////////
+TAB_AUX_LEIT_DIA2:
+LOAD 
+      applymap('TAB_UNDD_MESTRE',upper(trim(UNIDADE)),'NÃO ENCONTRADO')	as ID_UNDD
+     ,num(month(date('$(_fieldName)'))) 								as DATA_MES_LEIT_DIA
+	 ,year(date('$(_fieldName)')) 										as DATA_ANO_LEIT_DIA
+	 ,date('$(_fieldName)')												as DATA_LEIT_DIA
+     ,num([$(_fieldName)])    											as QTD_LEIT_DIA
+Resident
+	TAB_AUX_LEIT_DIA
+where
+		DEPARTAMENTO<>null()
+	and not Match(UNIDADE,'DAY CLINIC','CRÔNICOS','TRANSPLANTES SUS','RESIDENCIAL','HOME CARE',null());
+//////////////////////////////////////////////////////////////////	
+TAB_LEIT_DIA:
+LOAD
+	 DATA_MES_LEIT_DIA
+	,DATA_ANO_LEIT_DIA
+	,DATA_LEIT_DIA
+	,sum(QTD_LEIT_DIA) as QTD_LEIT_DIA
+Resident TAB_AUX_LEIT_DIA2
+group by DATA_MES_LEIT_DIA, DATA_ANO_LEIT_DIA ,DATA_LEIT_DIA;
+drop Tables TAB_AUX_LEIT_DIA, TAB_AUX_LEIT_DIA2;
+
