@@ -8,6 +8,8 @@ A origem das informacoes foram arquivos disponibilizados diariamente para area d
 
 ## Overview 
 
+(obs: dados foram mesclados por motivos de confidencialidade)
+
 ![Alt Text](https://github.com/thalesgibbon/ProjetoUltron/raw/master/ProjetoUltron.png)
 
 
